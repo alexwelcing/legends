@@ -4,7 +4,7 @@ We want a flexible rust utility that let's us spin up a lot of different types o
 
   
 
-For the look and feel right off the bat we are going with above looking down RTS strategy game stylized like the Mega Man Legends came, but providing all of these functionalities. Think of this as using backgrounds, styles, colors, and most importantly menu utility, complex system management, fun animation, all brought to life using React + Rust. You will want to layout good bones, but do not need to build all of it. Just give the team a great start. 
+For the look and feel right off the bat we are going with above looking down RTS strategy game stylized like the Mega Man Legends game, but providing all of these functionalities. Think of this as using backgrounds, styles, colors, and most importantly menu utility, complex system management, fun animation, all brought to life using React + Rust. You will want to layout good bones, but do not need to build all of it. Just give the team a great start. 
 
 ## Status
 ANALYZING
