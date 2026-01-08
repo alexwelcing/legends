@@ -1,101 +1,123 @@
 {
   "dataModels": [
     {
-      "name": "AgentUnit",
+      "name": "AgentEntity",
       "fields": [
-        "unit_id: uuid",
-        "designation: string",
-        "status: enum(IDLE, ENGAGED, CRITICAL)",
-        "coordinates: struct{x, y, z}",
-        "current_task: string",
-        "battery_health: float",
-        "provider_model: string"
+        "agent_id: uuid",
+        "alias: string",
+        "archetype: string",
+        "runtime_status: enum(idle, active, error, dormant)",
+        "coordinates: vector3(x,y,z)",
+        "resources: struct(cpu, ram, gpu)",
+        "current_objective: string"
       ],
-      "relationships": "Belongs to a SwarmCluster; Executes InferenceJobs"
+      "relationships": "Belongs to a SwarmCluster; Generates many TelemetryPackets; Initiates InferenceJobs"
     },
     {
-      "name": "InfrastructureNode",
+      "name": "SwarmCluster",
       "fields": [
-        "node_id: uuid",
-        "type: enum(CONTAINER, RUNTIME, CODESPACE)",
-        "cpu_usage: float",
-        "memory_usage: float",
-        "logs: vector<string>",
-        "is_active: boolean"
+        "cluster_id: uuid",
+        "environment_context: enum(local, codespace, k8s)",
+        "base_station_ref: string",
+        "active_agent_count: integer",
+        "health_score: float"
       ],
-      "relationships": "Hosts AgentUnits; monitored by RustOrchestrator"
+      "relationships": "Aggregates multiple AgentEntities; Managed by SystemOrchestrator"
     },
     {
-      "name": "TerminalViewProfile",
+      "name": "TelemetryPacket",
       "fields": [
-        "profile_id: uuid",
-        "theme_asset_pack: string",
-        "widget_layout: json",
-        "active_overlays: vector<string>",
-        "refresh_rate: integer"
+        "timestamp: u64",
+        "source_id: uuid",
+        "metric_type: string",
+        "payload: json",
+        "alert_level: enum(info, warning, critical)"
       ],
-      "relationships": "Applied to ReactViewportManager"
+      "relationships": "Linked to AgentEntity or ContainerRuntime"
     },
     {
-      "name": "InferencePayload",
+      "name": "InferenceJob",
       "fields": [
         "job_id: uuid",
-        "source_agent_id: uuid",
-        "target_provider: enum(CLAUDE, HUGGINGFACE, OPENCODE)",
-        "prompt_context: text",
-        "response_stream: channel"
+        "provider: enum(claude, huggingface, opencode)",
+        "model_endpoint: string",
+        "input_context: text",
+        "output_response: text",
+        "latency_ms: u32",
+        "cost_token: float"
       ],
-      "relationships": "Dispatched by AgentUnit; Processed by InferenceUplink"
+      "relationships": "Requested by AgentEntity or UserTerminal; Proxied via InferenceGateway"
+    },
+    {
+      "name": "ViewConfiguration",
+      "fields": [
+        "config_id: uuid",
+        "theme_preset: enum(mega_legends_retro, wireframe, high_contrast)",
+        "camera_angle: vector3",
+        "active_widgets: list<string>",
+        "rendering_mode: enum(webgl, canvas_2d)"
+      ],
+      "relationships": "Applied to TerminalSession"
     }
   ],
   "components": [
     {
-      "name": "RustOrchestrator (Backend)",
-      "responsibility": "Core kernel running in the background. Manages system polling, Docker API bridging, and serves the WebSocket data stream.",
+      "name": "RustCoreOrchestrator",
+      "responsibility": "Main backend service running in the container. Manages thread pools for agent communications, aggregates metrics, and serves the WebSocket stream to the frontend.",
       "stateRequired": [
-        "SystemMetricsMap",
-        "ActiveContainerList",
-        "EnvConfig"
+        "AgentRegistry",
+        "EnvironmentConfig",
+        "WebSocketConnectionPool"
       ]
     },
     {
-      "name": "TacticalMapCanvas (Frontend)",
-      "responsibility": "Renders the 'Mega Man Legends' style RTS top-down view. Visualizes containers as buildings and agents as mechanical units.",
+      "name": "InferenceGateway",
+      "responsibility": "Rust-based proxy layer that handles authentication and rate-limiting for external AI providers (Claude, Hugging Face). Sanitizes prompts and logs usage.",
       "stateRequired": [
-        "EntityPositions",
-        "CameraTransform",
-        "SelectionState"
-      ]
-    },
-    {
-      "name": "DigiMenuSystem (Frontend)",
-      "responsibility": "Handles the retro-stylized UI overlays, inventory-style resource management, and navigation between terminal views.",
-      "stateRequired": [
-        "ActiveMenuDepth",
-        "UserProfileSettings",
-        "WidgetRegistry"
-      ]
-    },
-    {
-      "name": "InferenceUplink (Rust)",
-      "responsibility": "Acts as the proxy gateway for LLM providers. Handles API key injection, rate limiting, and streaming responses back to the frontend.",
-      "stateRequired": [
-        "ProviderConnections",
+        "ProviderApiKeys",
         "JobQueue",
         "TokenUsageStats"
+      ]
+    },
+    {
+      "name": "ViewportEngine",
+      "responsibility": "React/WebGL component (using React Three Fiber) that renders the RTS-style map. Handles the 'Mega Man Legends' aesthetic including low-poly models, retro textures, and camera controls.",
+      "stateRequired": [
+        "CameraPosition",
+        "RenderedEntityList",
+        "AssetCache"
+      ]
+    },
+    {
+      "name": "DigiBeetleUnit",
+      "responsibility": "Visual representation of an agent or container within the Viewport. Displays health bars, status icons, and movement animations based on real-time telemetry.",
+      "stateRequired": [
+        "EntityID",
+        "LocalCoordinates",
+        "AnimationState",
+        "HealthStatus"
+      ]
+    },
+    {
+      "name": "CommandOverlayUI",
+      "responsibility": "Retro-styled menu system overlaid on the 3D view. Handles user input for spawning agents, viewing logs, and configuring the environment variables.",
+      "stateRequired": [
+        "ActiveMenuSelection",
+        "SystemLogBuffer",
+        "UserPreferences"
       ]
     }
   ],
   "logicFlows": [
-    "Startup: Rust binary initializes, probes GitHub Codespace env vars, establishes Docker socket connection, and opens WebSocket server.",
-    "Monitoring Loop: Rust backend polls infrastructure metrics (CPU/RAM/Logs) -> Broadcasts delta updates -> React updates unit animations and health bars on the Tactical Map.",
-    "Agent Deployment: User selects a location on the Tactical Map -> Frontend sends 'Deploy' command -> Rust spins up a new container/process -> New 'AgentUnit' appears on map.",
-    "Inference Pipeline: User or Agent triggers a query -> InferenceUplink formats payload for specific provider (Claude/HF) -> Response is streamed to the in-game 'Comms Log' UI."
+    "Initialization: Rust backend detects runtime (Codespace/Local) -> Loads .env -> Starts WebSocket Server -> React Client Connects -> Handshake validates Auth.",
+    "Data Sync: Agents/Containers push metrics to RustCore -> RustCore processes and aggregates -> Broadcasts binary diffs via WebSocket -> ViewportEngine updates DigiBeetleUnit positions and stats.",
+    "Inference Loop: User/Agent triggers request -> Rust InferenceGateway injects context -> Calls External API (Claude/HF) -> Streams response back to CommandOverlayUI.",
+    "Swarm Construction: User selects 'Spin Up' in UI -> Sends payload to RustCore -> RustCore utilizes Docker/Process API to spawn new runtime -> New Entity registers in SwarmCluster."
   ],
   "securityRequirements": [
-    "LLM API Keys must be injected via process environment variables only, never stored in frontend state.",
-    "WebSocket commands must be validated against a strict schema to prevent shell injection into the host machine.",
-    "CORS policies restricted to localhost and the specific GitHub Codespace domain.",
-    "ReadOnly flag available for the orchestrator to prevent accidental container termination during observation."
+    "Environment Variable Isolation: API keys for inference providers must remain server-side in Rust memory, never sent to the React client.",
+    "WebSocket Authentication: Handshake must verify a session token generated by the GitHub Codespace environment to prevent unauthorized external access.",
+    "Container Sandboxing: Dynamic tools spun up by the swarm must run with limited permissions to prevent host system compromise.",
+    "Input Sanitization: All commands passed from the retro UI to the shell executor must be scrubbed to prevent command injection."
   ]
 }
