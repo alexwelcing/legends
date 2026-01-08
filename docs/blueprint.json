@@ -1,0 +1,101 @@
+{
+  "dataModels": [
+    {
+      "name": "AgentUnit",
+      "fields": [
+        "unit_id: uuid",
+        "designation: string",
+        "status: enum(IDLE, ENGAGED, CRITICAL)",
+        "coordinates: struct{x, y, z}",
+        "current_task: string",
+        "battery_health: float",
+        "provider_model: string"
+      ],
+      "relationships": "Belongs to a SwarmCluster; Executes InferenceJobs"
+    },
+    {
+      "name": "InfrastructureNode",
+      "fields": [
+        "node_id: uuid",
+        "type: enum(CONTAINER, RUNTIME, CODESPACE)",
+        "cpu_usage: float",
+        "memory_usage: float",
+        "logs: vector<string>",
+        "is_active: boolean"
+      ],
+      "relationships": "Hosts AgentUnits; monitored by RustOrchestrator"
+    },
+    {
+      "name": "TerminalViewProfile",
+      "fields": [
+        "profile_id: uuid",
+        "theme_asset_pack: string",
+        "widget_layout: json",
+        "active_overlays: vector<string>",
+        "refresh_rate: integer"
+      ],
+      "relationships": "Applied to ReactViewportManager"
+    },
+    {
+      "name": "InferencePayload",
+      "fields": [
+        "job_id: uuid",
+        "source_agent_id: uuid",
+        "target_provider: enum(CLAUDE, HUGGINGFACE, OPENCODE)",
+        "prompt_context: text",
+        "response_stream: channel"
+      ],
+      "relationships": "Dispatched by AgentUnit; Processed by InferenceUplink"
+    }
+  ],
+  "components": [
+    {
+      "name": "RustOrchestrator (Backend)",
+      "responsibility": "Core kernel running in the background. Manages system polling, Docker API bridging, and serves the WebSocket data stream.",
+      "stateRequired": [
+        "SystemMetricsMap",
+        "ActiveContainerList",
+        "EnvConfig"
+      ]
+    },
+    {
+      "name": "TacticalMapCanvas (Frontend)",
+      "responsibility": "Renders the 'Mega Man Legends' style RTS top-down view. Visualizes containers as buildings and agents as mechanical units.",
+      "stateRequired": [
+        "EntityPositions",
+        "CameraTransform",
+        "SelectionState"
+      ]
+    },
+    {
+      "name": "DigiMenuSystem (Frontend)",
+      "responsibility": "Handles the retro-stylized UI overlays, inventory-style resource management, and navigation between terminal views.",
+      "stateRequired": [
+        "ActiveMenuDepth",
+        "UserProfileSettings",
+        "WidgetRegistry"
+      ]
+    },
+    {
+      "name": "InferenceUplink (Rust)",
+      "responsibility": "Acts as the proxy gateway for LLM providers. Handles API key injection, rate limiting, and streaming responses back to the frontend.",
+      "stateRequired": [
+        "ProviderConnections",
+        "JobQueue",
+        "TokenUsageStats"
+      ]
+    }
+  ],
+  "logicFlows": [
+    "Startup: Rust binary initializes, probes GitHub Codespace env vars, establishes Docker socket connection, and opens WebSocket server.",
+    "Monitoring Loop: Rust backend polls infrastructure metrics (CPU/RAM/Logs) -> Broadcasts delta updates -> React updates unit animations and health bars on the Tactical Map.",
+    "Agent Deployment: User selects a location on the Tactical Map -> Frontend sends 'Deploy' command -> Rust spins up a new container/process -> New 'AgentUnit' appears on map.",
+    "Inference Pipeline: User or Agent triggers a query -> InferenceUplink formats payload for specific provider (Claude/HF) -> Response is streamed to the in-game 'Comms Log' UI."
+  ],
+  "securityRequirements": [
+    "LLM API Keys must be injected via process environment variables only, never stored in frontend state.",
+    "WebSocket commands must be validated against a strict schema to prevent shell injection into the host machine.",
+    "CORS policies restricted to localhost and the specific GitHub Codespace domain.",
+    "ReadOnly flag available for the orchestrator to prevent accidental container termination during observation."
+  ]
+}
