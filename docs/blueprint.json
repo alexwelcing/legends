@@ -1,116 +1,148 @@
 {
   "dataModels": [
     {
-      "name": "CourseConfiguration",
+      "name": "MegaManVolnutt",
       "fields": [
-        "courseId",
-        "layoutTopology",
-        "redConeCoordinates",
-        "yellowConeCoordinates",
-        "startPoint",
-        "finishLine"
+        "currentHP",
+        "maxHP",
+        "alignmentValue",
+        "licenseRank",
+        "equippedHelmet",
+        "equippedArmor",
+        "equippedShoes",
+        "equippedSpecialWeapon"
       ],
-      "relationships": "Contains multiple DifficultyTier definitions"
+      "relationships": "Owns Inventory, linked to DiggerLicense"
     },
     {
-      "name": "DifficultyTier",
+      "name": "SpecialWeapon",
       "fields": [
-        "rankLevel",
-        "timeLimitSeconds",
-        "zennyRewardAmount",
-        "uniqueRewardItemId",
-        "isUniqueClaimed"
+        "weaponName",
+        "attackPower",
+        "energyCost",
+        "range",
+        "rapidFireStat",
+        "specialStatusEffect"
       ],
-      "relationships": "Linked to specific CourseConfiguration"
+      "relationships": "Equipped by MegaManVolnutt, upgrades via Mechanic"
     },
     {
-      "name": "RaceSession",
+      "name": "EnemyReaverbot",
       "fields": [
-        "currentTimerValue",
-        "yellowConesHit",
-        "currentCourseId",
-        "selectedDifficulty",
-        "isTimerPaused"
+        "entityID",
+        "baseHP",
+        "baseAttack",
+        "mobilityType",
+        "isLiftable",
+        "vulnerabilityType",
+        "dropTableZenny"
       ],
-      "relationships": "Instantiated by RaceStateManager during gameplay"
+      "relationships": "Scaled by DiggerLicenseMultiplier, drops Item/Zenny"
     },
     {
-      "name": "PlayerProgression",
+      "name": "DiggerLicense",
       "fields": [
-        "totalZenny",
-        "completedRanksMap",
-        "inventoryItems"
+        "rankName",
+        "enemyHPMultiplier",
+        "lootDropMultiplier",
+        "ruinAccessLevel"
       ],
-      "relationships": "Persists state across game sessions"
+      "relationships": "Modifies GlobalGameDifficulty"
+    },
+    {
+      "name": "InventoryItem",
+      "fields": [
+        "itemName",
+        "itemType",
+        "buyPrice",
+        "sellPrice",
+        "maxCapacity",
+        "effectValue"
+      ],
+      "relationships": "Stored in InventorySystem, Sold in Shop"
     }
   ],
   "components": [
     {
-      "name": "RaceStateManager",
-      "responsibility": "Orchestrates the lifecycle of a race event from initialization to completion or failure.",
+      "name": "CombatLockOnSystem",
+      "responsibility": "Manages target acquisition and visual feedback based on weapon range.",
       "stateRequired": [
-        "raceActive",
-        "currentPhase",
-        "selectedCourse"
+        "playerTransform",
+        "enemyList",
+        "currentWeaponRange"
       ],
       "methods": [
-        "initializeRace(courseId, rank)",
-        "startCountdown()",
-        "endRace(result)",
-        "resetCourse()"
+        "findNearestTarget()",
+        "calculateDistance()",
+        "updateCrosshairState(Red|Yellow|Blue)",
+        "enableStrafingMovement()"
       ]
     },
     {
-      "name": "ConeInteractionManager",
-      "responsibility": "Handles collision detection with course markers and processes the time-stop mechanics for yellow cones.",
+      "name": "LifterMechanic",
+      "responsibility": "Handles the physics and logic for picking up and throwing objects or stunned enemies.",
       "stateRequired": [
-        "activeYellowCones",
-        "pauseEffectDuration"
+        "isLifting",
+        "heldEntityID",
+        "playerInputState"
       ],
       "methods": [
-        "detectCollision(playerVector, coneType)",
-        "triggerTimeFreeze()",
-        "enforceBoundary(redConeData)"
+        "detectLiftableObject()",
+        "attachObjectToPlayer()",
+        "throwObject()",
+        "calculateImpactDamage()"
       ]
     },
     {
-      "name": "TimerSystem",
-      "responsibility": "Manages the countdown clock, including the decrement logic and suspension states when bonuses are acquired.",
+      "name": "StatusEffectManager",
+      "responsibility": "Applies and tracks temporary ailments on the player.",
       "stateRequired": [
-        "timeRemaining",
-        "isPaused",
-        "pauseEndTime"
+        "activeEffects",
+        "effectTimers"
       ],
       "methods": [
-        "decrementTime()",
-        "applyTimeBonus(seconds)",
-        "pauseCountdown(duration)",
-        "checkTimeExpiration()"
+        "applyEffect(Paralysis|EnergyLeak)",
+        "decrementTimers()",
+        "removeEffect()",
+        "checkBarrierImmunity()"
       ]
     },
     {
-      "name": "RewardCalculator",
-      "responsibility": "Determines payouts based on difficulty rank and completion status.",
+      "name": "DifficultyScaler",
+      "responsibility": "Adjusts enemy statistics dynamically based on the player's obtained license.",
       "stateRequired": [
-        "rankRewardTable",
-        "firstTimeBonusFlag"
+        "currentLicenseRank",
+        "globalEnemyList"
       ],
       "methods": [
-        "calculateZenny(rank)",
-        "awardUniqueItem(rank)",
-        "updateSaveData()"
+        "applyHealthMultiplier(ClassB=1.0, ClassA=1.5, ClassS=2.0)",
+        "unlockRuinGates()",
+        "adjustZennyDrops()"
+      ]
+    },
+    {
+      "name": "AlignmentTracker",
+      "responsibility": "Tracks player moral choices to influence NPC reactions and shop prices.",
+      "stateRequired": [
+        "alignmentScore",
+        "appearanceState"
+      ],
+      "methods": [
+        "modifyAlignment(value)",
+        "updatePlayerTexture()",
+        "calculateShopDiscount()"
       ]
     }
   ],
   "logicFlows": [
-    "Race Initiation: Player selects Course (1-3) -> Selects Difficulty (D-A) -> System loads geometry and cone placement -> TimerSystem initializes with rank-specific limit.",
-    "Gameplay Loop: Input handling moves MegaMan -> Physics engine checks collisions -> If Yellow Cone hit: Trigger ConeInteractionManager, Pause TimerSystem, Play SFX -> If Red Cone hit: Physics rebound/Collision response.",
-    "End Condition (Success): Player crosses finish line -> RaceStateManager stops timer -> RewardCalculator checks Rank -> Grants Zenny -> If Rank A and first completion: Grant Unique Reward -> Save PlayerProgression.",
-    "End Condition (Failure): TimerSystem reaches zero -> RaceStateManager triggers Game Over state -> Prompt retry or exit."
+    "Combat Targeting: Input LockOn -> Scan Entities -> Select Target -> Compare Distance to WeaponRange -> Set Crosshair (Yellow if <= Range, Red if > Range) -> Allow Strafing.",
+    "Lifting Interaction: Input Action -> Raycast Check -> If Entity Stunned/Object Liftable -> Attach to Anchor Point -> Input Throw -> Detach -> Apply Physics Impulse -> Collision triggers Damage.",
+    "License Progression: Complete Digger Test -> Upgrade License Object -> Broadcast Event 'LicenseRankUp' -> DifficultyScaler multiplies Enemy MaxHP -> Unlock High-Tier Ruins.",
+    "Status Ailment: Receive Special Damage -> Check Immunities (Armor/Chips) -> If Vulnerable apply Effect -> Update UI Icon -> Restrict Input/Drain Energy -> Timer Expires or Medicine Used."
   ],
   "securityRequirements": [
-    "Validate race completion times against theoretical minimums to prevent speed-hacking.",
-    "Encrypt local save files to prevent Zenny injection or unearned rank unlocking.",
-    "Sanitize inputs on difficulty selection to prevent accessing undefined ranks or debug modes."
+    "Save Data Integrity: Checksum validation to prevent corruption of progress (Keys/License Rank).",
+    "Inventory Bounds Checking: Enforce maximum capacity (99) for consumables to prevent integer overflow.",
+    "Collision Boundary Enforcement: Prevent player clipping through ruin geometry or falling out of world bounds during 'Lifter' interactions."
   ]
 }
