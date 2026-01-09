@@ -3,121 +3,106 @@
     {
       "name": "AgentEntity",
       "fields": [
-        "agent_id: uuid",
-        "alias: string",
-        "archetype: string",
-        "runtime_status: enum(idle, active, error, dormant)",
-        "coordinates: vector3(x,y,z)",
-        "resources: struct(cpu, ram, gpu)",
-        "current_objective: string"
+        "agent_id: UUID",
+        "status: Enum(Idle, Busy, Error, Offline)",
+        "capabilities: Vector<String>",
+        "runtime_metrics: Struct(cpu, memory, latency)",
+        "current_task: Option<String>"
       ],
-      "relationships": "Belongs to a SwarmCluster; Generates many TelemetryPackets; Initiates InferenceJobs"
+      "relationships": "One-to-Many with TelemetryPacket; Many-to-One with SwarmCluster"
     },
     {
-      "name": "SwarmCluster",
+      "name": "InferenceProviderConfig",
       "fields": [
-        "cluster_id: uuid",
-        "environment_context: enum(local, codespace, k8s)",
-        "base_station_ref: string",
-        "active_agent_count: integer",
-        "health_score: float"
+        "provider_id: UUID",
+        "provider_name: String",
+        "endpoint_url: String",
+        "model_spec: String",
+        "usage_limit: u64",
+        "is_active: Boolean"
       ],
-      "relationships": "Aggregates multiple AgentEntities; Managed by SystemOrchestrator"
+      "relationships": "One-to-Many with InferenceLog; Referenced by SystemSettings (secrets stored separately)"
     },
     {
       "name": "TelemetryPacket",
       "fields": [
+        "source_id: UUID",
         "timestamp: u64",
-        "source_id: uuid",
-        "metric_type: string",
-        "payload: json",
-        "alert_level: enum(info, warning, critical)"
+        "metric_type: String",
+        "payload: JSON",
+        "severity: Enum(Info, Warning, Critical)"
       ],
-      "relationships": "Linked to AgentEntity or ContainerRuntime"
+      "relationships": "Linked to AgentEntity"
     },
     {
-      "name": "InferenceJob",
+      "name": "WorkspaceLayout",
       "fields": [
-        "job_id: uuid",
-        "provider: enum(claude, huggingface, opencode)",
-        "model_endpoint: string",
-        "input_context: text",
-        "output_response: text",
-        "latency_ms: u32",
-        "cost_token: float"
+        "layout_id: UUID",
+        "user_id: String",
+        "theme_preference: String",
+        "window_positions: JSON",
+        "active_panels: Vector<String>"
       ],
-      "relationships": "Requested by AgentEntity or UserTerminal; Proxied via InferenceGateway"
-    },
-    {
-      "name": "ViewConfiguration",
-      "fields": [
-        "config_id: uuid",
-        "theme_preset: enum(mega_legends_retro, wireframe, high_contrast)",
-        "camera_angle: vector3",
-        "active_widgets: list<string>",
-        "rendering_mode: enum(webgl, canvas_2d)"
-      ],
-      "relationships": "Applied to TerminalSession"
+      "relationships": "Bound to UserSession"
     }
   ],
   "components": [
     {
-      "name": "RustCoreOrchestrator",
-      "responsibility": "Main backend service running in the container. Manages thread pools for agent communications, aggregates metrics, and serves the WebSocket stream to the frontend.",
+      "name": "RustSwarmOrchestrator",
+      "responsibility": "Manages agent lifecycles, handles concurrency via Tokio, and maintains the global state of the swarm.",
       "stateRequired": [
         "AgentRegistry",
-        "EnvironmentConfig",
-        "WebSocketConnectionPool"
+        "TaskQueue",
+        "EnvironmentContext"
       ]
     },
     {
       "name": "InferenceGateway",
-      "responsibility": "Rust-based proxy layer that handles authentication and rate-limiting for external AI providers (Claude, Hugging Face). Sanitizes prompts and logs usage.",
+      "responsibility": "Securely proxies requests to AI providers, handles hot-swapping of models, and tracks token usage.",
       "stateRequired": [
-        "ProviderApiKeys",
-        "JobQueue",
-        "TokenUsageStats"
+        "ActiveProviderConfig",
+        "RateLimiters",
+        "CircuitBreakerStatus"
       ]
     },
     {
-      "name": "ViewportEngine",
-      "responsibility": "React/WebGL component (using React Three Fiber) that renders the RTS-style map. Handles the 'Mega Man Legends' aesthetic including low-poly models, retro textures, and camera controls.",
+      "name": "TelemetryStreamer",
+      "responsibility": "Aggregates metrics from agents and pushes updates to the frontend via WebSockets/gRPC.",
       "stateRequired": [
-        "CameraPosition",
-        "RenderedEntityList",
-        "AssetCache"
+        "WebSocketConnections",
+        "MetricBuffer"
       ]
     },
     {
-      "name": "DigiBeetleUnit",
-      "responsibility": "Visual representation of an agent or container within the Viewport. Displays health bars, status icons, and movement animations based on real-time telemetry.",
+      "name": "IsometricViewport (React)",
+      "responsibility": "Renders the RTS-style, Mega Man Legends-inspired 3D/2D visualization of the swarm and containers.",
       "stateRequired": [
-        "EntityID",
-        "LocalCoordinates",
-        "AnimationState",
-        "HealthStatus"
+        "CameraAngle",
+        "EntityCoordinates",
+        "RenderAssets"
       ]
     },
     {
-      "name": "CommandOverlayUI",
-      "responsibility": "Retro-styled menu system overlaid on the 3D view. Handles user input for spawning agents, viewing logs, and configuring the environment variables.",
+      "name": "TerminalMultiplexer",
+      "responsibility": "Renders customizable, draggable terminal windows for raw logs and command inputs.",
       "stateRequired": [
-        "ActiveMenuSelection",
-        "SystemLogBuffer",
-        "UserPreferences"
+        "ActiveShellSessions",
+        "CommandHistory",
+        "ThemeConfig"
       ]
     }
   ],
   "logicFlows": [
-    "Initialization: Rust backend detects runtime (Codespace/Local) -> Loads .env -> Starts WebSocket Server -> React Client Connects -> Handshake validates Auth.",
-    "Data Sync: Agents/Containers push metrics to RustCore -> RustCore processes and aggregates -> Broadcasts binary diffs via WebSocket -> ViewportEngine updates DigiBeetleUnit positions and stats.",
-    "Inference Loop: User/Agent triggers request -> Rust InferenceGateway injects context -> Calls External API (Claude/HF) -> Streams response back to CommandOverlayUI.",
-    "Swarm Construction: User selects 'Spin Up' in UI -> Sends payload to RustCore -> RustCore utilizes Docker/Process API to spawn new runtime -> New Entity registers in SwarmCluster."
+    "Environment Detection: Rust Core starts -> Checks ENV variables (Local vs Codespace) -> Configures port binding and API base URLs -> Exposes capabilities to Frontend.",
+    "Real-time Telemetry: Agent generates data -> Rust Orchestrator receives via channel -> TelemetryStreamer serializes to Protobuf/JSON -> Pushed to WebSocket -> IsometricViewport updates entity animation/stats.",
+    "Inference Proxying: User/Agent requests completion -> InferenceGateway validates Auth -> Selects Active Provider -> Proxies Request (adding server-side API Key) -> Logs usage -> Returns response.",
+    "Hot-Swap Provider: User selects new Model in UI -> Request sent to Rust Core -> InferenceGateway pauses queue -> Updates configuration -> Test connection -> Resumes queue with new provider."
   ],
   "securityRequirements": [
-    "Environment Variable Isolation: API keys for inference providers must remain server-side in Rust memory, never sent to the React client.",
-    "WebSocket Authentication: Handshake must verify a session token generated by the GitHub Codespace environment to prevent unauthorized external access.",
-    "Container Sandboxing: Dynamic tools spun up by the swarm must run with limited permissions to prevent host system compromise.",
-    "Input Sanitization: All commands passed from the retro UI to the shell executor must be scrubbed to prevent command injection."
+    "API Keys for inference providers must be stored in server-side environment variables or encrypted vaults, never sent to the client.",
+    "WebSocket connections must require an initial handshake with an authentication token generated by the Rust backend.",
+    "All inputs from the TerminalMultiplexer must be sanitized and validated against a whitelist of allowed commands to prevent injection.",
+    "Agent runtimes must operate within sandboxed threads or containers to prevent host system compromise.",
+    "Cross-Origin Resource Sharing (CORS) must be strictly configured based on the detected environment (Localhost vs Codespace URL)."
   ]
 }

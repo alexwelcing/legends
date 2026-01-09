@@ -1,0 +1,26 @@
+{
+  "colorPalette": {
+    "primary": "#00F5FF",
+    "secondary": "#B87333",
+    "background": "#121417",
+    "surface": "#2D2F33",
+    "accent": "#FF4D00"
+  },
+  "typography": {
+    "headingFont": "Cinzel Decorative",
+    "bodyFont": "JetBrains Mono"
+  },
+  "uiPatterns": {
+    "borderRadius": "2px",
+    "shadows": "inset 0 0 12px rgba(0, 245, 255, 0.15), 0 8px 16px rgba(0, 0, 0, 0.6)",
+    "spacing": "4px",
+    "borderWidth": "1px"
+  },
+  "vibeKeywords": [
+    "Cyber-Archaeology",
+    "Lithic",
+    "Oxidized",
+    "Arcane-Tech",
+    "Monolithic"
+  ]
+}
