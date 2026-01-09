@@ -1,108 +1,116 @@
 {
   "dataModels": [
     {
-      "name": "AgentEntity",
+      "name": "CourseConfiguration",
       "fields": [
-        "agent_id: UUID",
-        "status: Enum(Idle, Busy, Error, Offline)",
-        "capabilities: Vector<String>",
-        "runtime_metrics: Struct(cpu, memory, latency)",
-        "current_task: Option<String>"
+        "courseId",
+        "layoutTopology",
+        "redConeCoordinates",
+        "yellowConeCoordinates",
+        "startPoint",
+        "finishLine"
       ],
-      "relationships": "One-to-Many with TelemetryPacket; Many-to-One with SwarmCluster"
+      "relationships": "Contains multiple DifficultyTier definitions"
     },
     {
-      "name": "InferenceProviderConfig",
+      "name": "DifficultyTier",
       "fields": [
-        "provider_id: UUID",
-        "provider_name: String",
-        "endpoint_url: String",
-        "model_spec: String",
-        "usage_limit: u64",
-        "is_active: Boolean"
+        "rankLevel",
+        "timeLimitSeconds",
+        "zennyRewardAmount",
+        "uniqueRewardItemId",
+        "isUniqueClaimed"
       ],
-      "relationships": "One-to-Many with InferenceLog; Referenced by SystemSettings (secrets stored separately)"
+      "relationships": "Linked to specific CourseConfiguration"
     },
     {
-      "name": "TelemetryPacket",
+      "name": "RaceSession",
       "fields": [
-        "source_id: UUID",
-        "timestamp: u64",
-        "metric_type: String",
-        "payload: JSON",
-        "severity: Enum(Info, Warning, Critical)"
+        "currentTimerValue",
+        "yellowConesHit",
+        "currentCourseId",
+        "selectedDifficulty",
+        "isTimerPaused"
       ],
-      "relationships": "Linked to AgentEntity"
+      "relationships": "Instantiated by RaceStateManager during gameplay"
     },
     {
-      "name": "WorkspaceLayout",
+      "name": "PlayerProgression",
       "fields": [
-        "layout_id: UUID",
-        "user_id: String",
-        "theme_preference: String",
-        "window_positions: JSON",
-        "active_panels: Vector<String>"
+        "totalZenny",
+        "completedRanksMap",
+        "inventoryItems"
       ],
-      "relationships": "Bound to UserSession"
+      "relationships": "Persists state across game sessions"
     }
   ],
   "components": [
     {
-      "name": "RustSwarmOrchestrator",
-      "responsibility": "Manages agent lifecycles, handles concurrency via Tokio, and maintains the global state of the swarm.",
+      "name": "RaceStateManager",
+      "responsibility": "Orchestrates the lifecycle of a race event from initialization to completion or failure.",
       "stateRequired": [
-        "AgentRegistry",
-        "TaskQueue",
-        "EnvironmentContext"
+        "raceActive",
+        "currentPhase",
+        "selectedCourse"
+      ],
+      "methods": [
+        "initializeRace(courseId, rank)",
+        "startCountdown()",
+        "endRace(result)",
+        "resetCourse()"
       ]
     },
     {
-      "name": "InferenceGateway",
-      "responsibility": "Securely proxies requests to AI providers, handles hot-swapping of models, and tracks token usage.",
+      "name": "ConeInteractionManager",
+      "responsibility": "Handles collision detection with course markers and processes the time-stop mechanics for yellow cones.",
       "stateRequired": [
-        "ActiveProviderConfig",
-        "RateLimiters",
-        "CircuitBreakerStatus"
+        "activeYellowCones",
+        "pauseEffectDuration"
+      ],
+      "methods": [
+        "detectCollision(playerVector, coneType)",
+        "triggerTimeFreeze()",
+        "enforceBoundary(redConeData)"
       ]
     },
     {
-      "name": "TelemetryStreamer",
-      "responsibility": "Aggregates metrics from agents and pushes updates to the frontend via WebSockets/gRPC.",
+      "name": "TimerSystem",
+      "responsibility": "Manages the countdown clock, including the decrement logic and suspension states when bonuses are acquired.",
       "stateRequired": [
-        "WebSocketConnections",
-        "MetricBuffer"
+        "timeRemaining",
+        "isPaused",
+        "pauseEndTime"
+      ],
+      "methods": [
+        "decrementTime()",
+        "applyTimeBonus(seconds)",
+        "pauseCountdown(duration)",
+        "checkTimeExpiration()"
       ]
     },
     {
-      "name": "IsometricViewport (React)",
-      "responsibility": "Renders the RTS-style, Mega Man Legends-inspired 3D/2D visualization of the swarm and containers.",
+      "name": "RewardCalculator",
+      "responsibility": "Determines payouts based on difficulty rank and completion status.",
       "stateRequired": [
-        "CameraAngle",
-        "EntityCoordinates",
-        "RenderAssets"
-      ]
-    },
-    {
-      "name": "TerminalMultiplexer",
-      "responsibility": "Renders customizable, draggable terminal windows for raw logs and command inputs.",
-      "stateRequired": [
-        "ActiveShellSessions",
-        "CommandHistory",
-        "ThemeConfig"
+        "rankRewardTable",
+        "firstTimeBonusFlag"
+      ],
+      "methods": [
+        "calculateZenny(rank)",
+        "awardUniqueItem(rank)",
+        "updateSaveData()"
       ]
     }
   ],
   "logicFlows": [
-    "Environment Detection: Rust Core starts -> Checks ENV variables (Local vs Codespace) -> Configures port binding and API base URLs -> Exposes capabilities to Frontend.",
-    "Real-time Telemetry: Agent generates data -> Rust Orchestrator receives via channel -> TelemetryStreamer serializes to Protobuf/JSON -> Pushed to WebSocket -> IsometricViewport updates entity animation/stats.",
-    "Inference Proxying: User/Agent requests completion -> InferenceGateway validates Auth -> Selects Active Provider -> Proxies Request (adding server-side API Key) -> Logs usage -> Returns response.",
-    "Hot-Swap Provider: User selects new Model in UI -> Request sent to Rust Core -> InferenceGateway pauses queue -> Updates configuration -> Test connection -> Resumes queue with new provider."
+    "Race Initiation: Player selects Course (1-3) -> Selects Difficulty (D-A) -> System loads geometry and cone placement -> TimerSystem initializes with rank-specific limit.",
+    "Gameplay Loop: Input handling moves MegaMan -> Physics engine checks collisions -> If Yellow Cone hit: Trigger ConeInteractionManager, Pause TimerSystem, Play SFX -> If Red Cone hit: Physics rebound/Collision response.",
+    "End Condition (Success): Player crosses finish line -> RaceStateManager stops timer -> RewardCalculator checks Rank -> Grants Zenny -> If Rank A and first completion: Grant Unique Reward -> Save PlayerProgression.",
+    "End Condition (Failure): TimerSystem reaches zero -> RaceStateManager triggers Game Over state -> Prompt retry or exit."
   ],
   "securityRequirements": [
-    "API Keys for inference providers must be stored in server-side environment variables or encrypted vaults, never sent to the client.",
-    "WebSocket connections must require an initial handshake with an authentication token generated by the Rust backend.",
-    "All inputs from the TerminalMultiplexer must be sanitized and validated against a whitelist of allowed commands to prevent injection.",
-    "Agent runtimes must operate within sandboxed threads or containers to prevent host system compromise.",
-    "Cross-Origin Resource Sharing (CORS) must be strictly configured based on the detected environment (Localhost vs Codespace URL)."
+    "Validate race completion times against theoretical minimums to prevent speed-hacking.",
+    "Encrypt local save files to prevent Zenny injection or unearned rank unlocking.",
+    "Sanitize inputs on difficulty selection to prevent accessing undefined ranks or debug modes."
   ]
 }

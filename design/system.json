@@ -1,26 +1,26 @@
 {
   "colorPalette": {
-    "primary": "#00F5FF",
-    "secondary": "#B87333",
-    "background": "#121417",
-    "surface": "#2D2F33",
-    "accent": "#FF4D00"
+    "primary": "#00AEEF",
+    "secondary": "#FDC82F",
+    "background": "#0D1B2A",
+    "surface": "rgba(22, 33, 62, 0.85)",
+    "accent": "#FF4B2B"
   },
   "typography": {
-    "headingFont": "Cinzel Decorative",
-    "bodyFont": "JetBrains Mono"
+    "headingFont": "Orbitron, sans-serif",
+    "bodyFont": "Inter, sans-serif"
   },
   "uiPatterns": {
     "borderRadius": "2px",
-    "shadows": "inset 0 0 12px rgba(0, 245, 255, 0.15), 0 8px 16px rgba(0, 0, 0, 0.6)",
-    "spacing": "4px",
-    "borderWidth": "1px"
+    "shadows": "0 0 15px rgba(0, 174, 239, 0.4)",
+    "spacing": "16px",
+    "borderWidth": "3px"
   },
   "vibeKeywords": [
-    "Cyber-Archaeology",
-    "Lithic",
-    "Oxidized",
-    "Arcane-Tech",
-    "Monolithic"
+    "Live-Broadcast",
+    "Kattelox-Island",
+    "High-Energy",
+    "Sleek-Motion",
+    "Sporting-Event"
   ]
 }

@@ -1,29 +1,29 @@
 # Requirements Matrix
 
-## Connectivity: Real-time Telemetry Stream
+## Game Structure: Course Count
 - Status: pending
-- Spec: Use WebSockets (tokio-tungstenite) to provide a full-duplex JSON stream between the Rust backend and React frontend, ensuring compatibility with GitHub Codespaces port forwarding without gRPC-web proxy overhead.
+- Spec: The race game features three distinct courses located in the Downtown area.
 
-## Data: Configuration and Layout Storage
+## Difficulty System: Rank Levels
 - Status: pending
-- Spec: Implement a local SQLite database using rusqlite for persistent agent logs and telemetry, while utilizing a localized config.toml for environment-specific settings like API keys and terminal themes.
+- Spec: Each course consists of four difficulty levels ranked from D to A.
 
-## UX: Isometric Viewport Rendering
+## Gameplay Mechanics: Time Constraints
 - Status: pending
-- Spec: Utilize the HTML5 Canvas API via a custom React hook to render the Mega Man Legends-inspired isometric grid, ensuring high performance for 50+ concurrent agent nodes without the overhead of heavy 3D engines.
+- Spec: All races must be completed within a specific time limit to be successful.
 
-## Security: Secret Management
+## Navigation: Path Markers
 - Status: pending
-- Spec: Store AI provider keys exclusively in server-side environment variables loaded into a secure memory-mapped vault in Rust; secrets are never transmitted to the frontend or stored in the database.
+- Spec: Red cones are positioned along the track to indicate the required path for the player.
 
-## Integration: Container Runtime Interaction
+## Gameplay Mechanics: Timer Interaction
 - Status: pending
-- Spec: Directly interface with the host container runtime via Unix Sockets (Docker/Podman) using the bollard Rust crate to provide real-time lifecycle control and log streaming from the dashboard.
+- Spec: The countdown timer stops for a short duration when Mega Man knocks over yellow cones.
 
-## DevOps: Environment Awareness
+## Reward System: Standard Completion Reward
 - Status: pending
-- Spec: Detect GitHub Codespaces via the CODESPACES environment variable to automatically adjust host bindings to 0.0.0.0 and configure WebSocket CORS policies to match the dynamically assigned workspace URL.
+- Spec: Completion of any race grants the player Zenny based on the course and rank.
 
-## Performance: Inference Gateway Concurrency
+## Reward System: Unique Rank A Reward
 - Status: pending
-- Spec: Implement a trait-based provider routing system in Rust using tokio mpsc channels to support non-blocking hot-swapping of LLM backends without restarting the monitoring service.
+- Spec: A unique reward is granted only upon the first successful completion of the highest rank (Rank A) for each course.
